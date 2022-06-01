@@ -66,16 +66,10 @@ def parse_article_meta(tree):
     Parse PMID, PMC and DOI from given article tree
     """
     article_meta = tree.find(".//article-meta")
-    if article_meta is not None:
-        pmid_node = article_meta.find('article-id[@pub-id-type="pmid"]')
-        pmc_node = article_meta.find('article-id[@pub-id-type="pmc"]')
-        pub_id_node = article_meta.find('article-id[@pub-id-type="publisher-id"]')
-        doi_node = article_meta.find('article-id[@pub-id-type="doi"]')
-    else:
-        pmid_node = None
-        pmc_node = None
-        pub_id_node = None
-        doi_node = None
+    pmid_node = article_meta.find('article-id[@pub-id-type="pmid"]')
+    pmc_node = article_meta.find('article-id[@pub-id-type="pmc"]')
+    pub_id_node = article_meta.find('article-id[@pub-id-type="publisher-id"]')
+    doi_node = article_meta.find('article-id[@pub-id-type="doi"]')
 
     pmid = pmid_node.text if pmid_node is not None else ""
     pmc = pmc_node.text if pmc_node is not None else ""
