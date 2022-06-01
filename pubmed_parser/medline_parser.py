@@ -472,7 +472,7 @@ def parse_references(pubmed_article, reference_list):
         return references
     else:
         references = ";".join(
-            [ref["pmid"] for ref in references if ref["pmid"] != ""]
+            [ref["pmid"] for ref in references if ref["pmid"] is not ""]
         )
         return references
 
