@@ -25,6 +25,20 @@ def test_parse_medline_xml():
     assert parsed_medline[0]["languages"] == "eng"
     assert parsed_medline[0]["vernacular_title"] == ""
 
+    # Checking mesh terms on article with more possibilities
+    assert parsed_medline[2]["mesh_terms"] == "D000818:Animals; D000906:Antibodies; D004283:Dog Diseases; " \
+                                              "D004285:Dogs; D056890:Eukaryota; D005455:Fluorescent Antibody " \
+                                              "Technique; D011528:Protozoan Infections; D011529:Protozoan " \
+                                              "Infections, Animal"
+    assert parsed_medline[2]["mesh_subheadings"] == "Q000032:analysis; Q000276:immunology"
+    assert parsed_medline[2]["mesh_major_topics"] == "Q000032:analysis; Q000276:immunology; D005455:Fluorescent " \
+                                                     "Antibody Technique; D011529:Protozoan Infections, Animal"
+    assert parsed_medline[2]["mesh_full_terms"] == "D000818:Animals; D000906/Q000032:Antibodies/analysis; " \
+                                                   "D004283/Q000276:Dog Diseases/immunology; D004285:Dogs; " \
+                                                   "D056890/Q000276:Eukaryota/immunology; D005455:Fluorescent " \
+                                                   "Antibody Technique; D011528/Q000276:Protozoan " \
+                                                   "Infections/immunology; D011529:Protozoan Infections, Animal"
+
 
 def test_parse_medline_grant_id():
     """
