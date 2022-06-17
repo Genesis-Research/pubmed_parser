@@ -158,21 +158,11 @@ def parse_mesh_major_topics(medline):
         mesh = medline.find("MeshHeadingList")
         mesh_major_topic_list = []
         for mesh_heading in mesh.getchildren():
-            mesh_term = mesh_heading.find("DescriptorName")
-            subheadings = mesh_heading.findall("QualifierName")
-
-            if mesh_term.attrib.get("MajorTopicYN", "N") == "Y":
-                mesh_major_topic_list.append(
-                    mesh_term.attrib.get("UI", "")
-                    + ":"
-                    + mesh_term.text
-                )
-
-            for subheading in subheadings:
-                if subheading.attrib.get("MajorTopicYN", "N") == "Y":
-                    subheading_text = subheading.attrib.get("UI", "") + ":" + subheading.text
-                    if subheading_text not in mesh_major_topic_list:
-                        mesh_major_topic_list.append(subheading_text)
+            for mesh_term in mesh_heading.getchildren():
+                if mesh_term.attrib.get("MajorTopicYN", "N") == "Y":
+                    mesh_term_text = mesh_term.attrib.get("UI", "") + ":" + mesh_term.text
+                    if mesh_term_text not in mesh_major_topic_list:
+                        mesh_major_topic_list.append(mesh_term_text)
 
         mesh_major_topics = "; ".join(mesh_major_topic_list)
     else:
