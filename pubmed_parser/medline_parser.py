@@ -170,7 +170,7 @@ def parse_mesh_major_topics(medline):
     return mesh_major_topics
 
 
-def parse_mesh_full_terms(medline, major_topics=False):
+def parse_mesh_full_terms(medline, major_topics=True):
     """
     A function to parse full MESH terms from article (MESH Headings with MESH Subheadings and Major Topics).
 
@@ -219,7 +219,7 @@ def parse_mesh_full_terms(medline, major_topics=False):
     return mesh_full_terms
 
 
-def parse_mesh_info(medline, major_topics=False):
+def parse_mesh_info(medline, major_topics=True):
     """
     A function to parse MESH info from article, including MESH Headings, Subheadings, Major Topics, and Full Terms.
 
