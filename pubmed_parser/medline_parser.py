@@ -108,118 +108,7 @@ def parse_mesh_terms(medline):
     return mesh_terms
 
 
-def parse_mesh_subheadings(medline):
-    """
-    A function to parse MESH subheadings from article
-
-    Parameters
-    ----------
-    medline: Element
-        The lxml node pointing to a medline document
-
-    Returns
-    -------
-    mesh_subheadings: str
-        String of semi-colon ``;`` separated MeSH (Medical Subject Headings)
-        subheadings contained in the document.
-    """
-    if medline.find("MeshHeadingList") is not None:
-        mesh = medline.find("MeshHeadingList")
-        mesh_subheadings_list = []
-        for m in mesh.getchildren():
-            subheadings = m.findall("QualifierName")
-            for subheading in subheadings:
-                subheading_text = subheading.attrib.get("UI", "") + ":" + subheading.text
-                if subheading_text not in mesh_subheadings_list:
-                    mesh_subheadings_list.append(subheading_text)
-
-        mesh_subheadings = "; ".join(mesh_subheadings_list)
-    else:
-        mesh_subheadings = ""
-    return mesh_subheadings
-
-
-def parse_mesh_major_topics(medline):
-    """
-    A function to parse MESH terms from article
-
-    Parameters
-    ----------
-    medline: Element
-        The lxml node pointing to a medline document
-
-    Returns
-    -------
-    mesh_major_topics: str
-        String of semi-colon ``;`` spearated MeSH (Medical Subject Headings)
-        headings and subheadings that are designated as Major Topics contained in the document.
-    """
-    if medline.find("MeshHeadingList") is not None:
-        mesh = medline.find("MeshHeadingList")
-        mesh_major_topic_list = []
-        for mesh_heading in mesh.getchildren():
-            for mesh_term in mesh_heading.getchildren():
-                if mesh_term.attrib.get("MajorTopicYN", "N") == "Y":
-                    mesh_term_text = mesh_term.attrib.get("UI", "") + ":" + mesh_term.text
-                    if mesh_term_text not in mesh_major_topic_list:
-                        mesh_major_topic_list.append(mesh_term_text)
-
-        mesh_major_topics = "; ".join(mesh_major_topic_list)
-    else:
-        mesh_major_topics = ""
-    return mesh_major_topics
-
-
-def parse_mesh_full_terms(medline, major_topics=True):
-    """
-    A function to parse full MESH terms from article (MESH Headings with MESH Subheadings and Major Topics).
-
-    Parameters
-    ----------
-    medline: Element
-        The lxml node pointing to a medline document
-    major_topics: bool
-        This flag designates if you want to add '*' at the end of your full MeSH term text to identify major topics
-
-    Returns
-    -------
-    mesh_full_terms: str
-        String of semi-colon ``;`` separated MeSH (Medical Subject Headings)
-        full terms, including MeSH Headings, Subheadings, and Major Topics (Depicted as * at end of text)
-        contained in the document.
-    """
-    if medline.find("MeshHeadingList") is not None:
-        mesh = medline.find("MeshHeadingList")
-        mesh_full_terms_list = []
-        for mesh_heading in mesh.getchildren():
-            mesh_term = mesh_heading.find("DescriptorName")
-            subheadings = mesh_heading.findall("QualifierName")
-            if len(subheadings) > 0:
-                for subheading in subheadings:
-                    mesh_full_terms_list.append(
-                        mesh_term.attrib.get("UI", "")
-                        + "/"
-                        + subheading.attrib.get("UI", "")
-                        + ":"
-                        + mesh_term.text
-                        + "/"
-                        + subheading.text
-                        + ("*" if (major_topics and subheading.attrib.get("MajorTopicYN", "N") == "Y") else "")
-                    )
-            else:
-                mesh_full_terms_list.append(
-                    mesh_term.attrib.get("UI", "")
-                    + ":"
-                    + mesh_term.text
-                    + ("*" if (major_topics and mesh_term.attrib.get("MajorTopicYN", "N") == "Y") else "")
-                    )
-        mesh_full_terms = "; ".join(mesh_full_terms_list)
-    else:
-        mesh_full_terms = ""
-    return mesh_full_terms
-
-
-def parse_mesh_info(medline, major_topics=True):
+def parse_mesh_info(medline):
     """
     A function to parse MESH info from article, including MESH Headings, Subheadings, Major Topics, and Full Terms.
 
@@ -227,8 +116,6 @@ def parse_mesh_info(medline, major_topics=True):
     ----------
     medline: Element
         The lxml node pointing to a medline document
-    major_topics: bool
-        This flag designates if you want to add '*' at the end of your full MeSH term text to identify major topics
 
     Returns
     -------
@@ -282,7 +169,7 @@ def parse_mesh_info(medline, major_topics=True):
                         + mesh_term.text
                         + "/"
                         + subheading.text
-                        + ("*" if (major_topics and subheading.attrib.get("MajorTopicYN", "N") == "Y") else "")
+                        + ("*" if subheading.attrib.get("MajorTopicYN", "N") == "Y" else "")
                     )
             else:
                 if mesh_term.attrib.get("MajorTopicYN", "N") == "Y":
@@ -296,7 +183,7 @@ def parse_mesh_info(medline, major_topics=True):
                     mesh_term.attrib.get("UI", "")
                     + ":"
                     + mesh_term.text
-                    + ("*" if (major_topics and mesh_term.attrib.get("MajorTopicYN", "N") == "Y") else "")
+                    + ("*" if mesh_term.attrib.get("MajorTopicYN", "N") == "Y" else "")
                     )
 
         mesh_terms = "; ".join(mesh_terms_list)
