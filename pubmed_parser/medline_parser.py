@@ -79,6 +79,44 @@ def parse_doi(pubmed_article):
     return doi
 
 
+def parse_elocation_ids(pubmed_article):
+    """
+    A function to parse DOI from a given Pubmed Article tree
+
+    Parameters
+    ----------
+    pubmed_article: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    doi: list|objects
+        A list of ELocationID objects parsed from a given ``pubmed_article``. Added DOI!
+    """
+    medline = pubmed_article.find("MedlineCitation")
+    article = medline.find("Article")
+    elocation_ids_xml = article.findall("ELocationID")
+    found_doi = False
+    elocation_ids = list()
+
+    if len(elocation_ids_xml) > 0:
+        for e in elocation_ids_xml:
+            elocation_id_type = e.attrib.get('EIdType')
+            if elocation_id_type == "doi":
+                found_doi = True
+            elocation_ids.append({'type': elocation_id_type, 'ELocationID': e.text.strip()})
+
+    if not found_doi:
+        article_ids = pubmed_article.find("PubmedData/ArticleIdList")
+        if article_ids is not None:
+            doi = article_ids.find('ArticleId[@IdType="doi"]')
+            if doi is not None:
+                if doi.text.strip() != "":
+                    elocation_ids.append({'type': 'doi', 'ELocationID': doi.text.strip()})
+
+    return elocation_ids
+
+
 def parse_mesh_terms(medline):
     """
     A function to parse MESH terms from article
@@ -272,9 +310,12 @@ def parse_chemical_list(medline):
     chemicals = medline.find("ChemicalList")
     if chemicals is not None:
         for chemical in chemicals.findall("Chemical"):
+            registry_number = chemical.find("RegistryNumber")
             substance_name = chemical.find("NameOfSubstance")
             chemical_list.append(
-                substance_name.attrib.get("UI", "")
+                (registry_number.text.strip() or "")
+                + ":"
+                + substance_name.attrib.get("UI", "")
                 + ":"
                 + (substance_name.text.strip() or "")
             )
@@ -446,9 +487,20 @@ def parse_author_affiliation(medline):
                 else:
                     lastname = ""
                 if author.find("Identifier") is not None:
-                    identifier = (author.find("Identifier").text or "").strip() or ""
+                    identifier_xml = author.find("Identifier")
+                    identifier_type = (identifier_xml.attrib.get("Source", "") or "").strip() or ""
+                    identifier = (identifier_xml.text or "").strip() or ""
                 else:
+                    identifier_type = ""
                     identifier = ""
+                if author.find("Suffix") is not None:
+                    suffix = (author.find("Suffix").text or "").strip() or ""
+                else:
+                    suffix = ""
+                if author.find("CollectiveName") is not None:
+                    corporate = (author.find("CollectiveName").text or "").strip() or ""
+                else:
+                    corporate = ""
                 if author.find("AffiliationInfo/Affiliation") is not None:
                     affiliation = author.find("AffiliationInfo/Affiliation").text or ""
                     affiliation = affiliation.replace(
@@ -462,11 +514,76 @@ def parse_author_affiliation(medline):
                         "lastname": lastname,
                         "forename": forename,
                         "initials": initials,
+                        "identifier_type": identifier_type,
                         "identifier": identifier,
+                        "corporate": corporate,
+                        "suffix": suffix,
                         "affiliation": affiliation,
                     }
                 )
     return authors
+
+
+def get_date_info(date_xml, year_info_only, parse_time=False):
+    """Extract Date information from an Article in the Medline dataset.
+
+    Parameters
+    ----------
+    date_xml: Element
+        Any Date field in the Medline dataset
+    year_info_only: bool
+        if True, this tool will only attempt to extract year information from PubDate.
+        if False, an attempt will be made to harvest all available PubDate information.
+        If only year and month information is available, this will yield a date of
+        the form 'YYYY-MM'. If year, month and day information is available,
+        a date of the form 'YYYY-MM-DD' will be returned.
+    parse_time: bool
+        if True, this tool will also extract hour and minute info from the date.
+        If only year and month information is available, this will yield a date of
+        the form 'YYYY-MM'. If year, month and day information is available,
+        a date of the form 'YYYY-MM-DD' will be returned. And so on.
+
+    Returns
+    -------
+    Date: str
+        Date extracted from an article.
+        Note: If year_info_only is False and a month could not be
+        extracted this falls back to year automatically.
+    """
+
+    month = None
+    day = None
+    hour = None
+    minute = None
+    if date_xml.find("Year") is not None:
+        year = date_xml.find("Year").text
+        if not year_info_only:
+            if date_xml.find("Month") is not None:
+                month = month_or_day_formater(date_xml.find("Month").text)
+                if date_xml.find("Day") is not None:
+                    day = month_or_day_formater(date_xml.find("Day").text)
+                    if date_xml.find("Hour") is not None:
+                        hour = month_or_day_formater(date_xml.find("Hour").text)
+                        if date_xml.find("Minute") is not None:
+                            minute = month_or_day_formater(date_xml.find("Minute").text)
+    elif date_xml.find("MedlineDate") is not None:
+        year_text = date_xml.find("MedlineDate").text
+        year = re.findall(r"\d{4}", year_text)
+        if len(year) >= 1:
+            year = year[0]
+        else:
+            year = ""
+    else:
+        year = ""
+
+    if year_info_only or month is None:
+        return year
+    else:
+        date = "-".join(str(x) for x in filter(None, [year, month, day]))
+        if parse_time or hour is None:
+            time = ":".join(str(x) for x in filter(None, [hour, minute]))
+            date = date + ' ' + time
+        return date
 
 
 def date_extractor(journal, year_info_only):
@@ -490,32 +607,10 @@ def date_extractor(journal, year_info_only):
         Note: If year_info_only is False and a month could not be
         extracted this falls back to year automatically.
     """
-    day = None
-    month = None
     issue = journal.xpath("JournalIssue")[0]
     issue_date = issue.find("PubDate")
 
-    if issue_date.find("Year") is not None:
-        year = issue_date.find("Year").text
-        if not year_info_only:
-            if issue_date.find("Month") is not None:
-                month = month_or_day_formater(issue_date.find("Month").text)
-                if issue_date.find("Day") is not None:
-                    day = month_or_day_formater(issue_date.find("Day").text)
-    elif issue_date.find("MedlineDate") is not None:
-        year_text = issue_date.find("MedlineDate").text
-        year = re.findall(r"\d{4}", year_text)
-        if len(year) >= 1:
-            year = year[0]
-        else:
-            year = ""
-    else:
-        year = ""
-
-    if year_info_only or month is None:
-        return year
-    else:
-        return "-".join(str(x) for x in filter(None, [year, month, day]))
+    return get_date_info(issue_date, year_info_only)
 
 
 def parse_references(pubmed_article, reference_list):
@@ -572,8 +667,269 @@ def parse_references(pubmed_article, reference_list):
         return references
 
 
+def parse_coi_statement(medline):
+    """Parse COI Statement from article
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    coi_statement: str
+        Returns the COI Statement, or "" if doesn't exist.
+    """
+    coi_statement = ""
+    if medline.find("CoiStatement") is not None:
+        coi_statement = (medline.find("CoiStatement").text or "").strip() or ""
+    return coi_statement
+
+
+def parse_pubmed_history_dates(pubmed_article, year_info_only, parse_time):
+    """Parse history dates from article
+
+    Parameters
+    ----------
+    pubmed_article: Element
+        The lxml element pointing to a medline document
+    year_info_only: bool
+        if True, this tool will only attempt to extract year information from PubDate.
+        if False, an attempt will be made to harvest all available PubDate information.
+        If only year and month information is available, this will yield a date of
+        the form 'YYYY-MM'. If year, month and day information is available,
+        a date of the form 'YYYY-MM-DD' will be returned.
+    parse_time: bool
+        if True, parse the hour and minute from the date and add to the string as "YYYY/MM/DD HH:MM"
+        if False, just parse the date info, "YYYY/MM/DD".
+        This requires year_info_only to be True
+
+    Returns
+    -------
+    dates: (list, dict)
+        Return a list of dictionary. Status and Date.
+    """
+    dates = list()
+    if pubmed_article.find("PubmedData") is not None:
+        if pubmed_article.find("PubmedData/History") is not None:
+            pubmed_history = pubmed_article.find("PubmedData/History")
+            for pubmed_pubdate in pubmed_history.findall("PubMedPubDate"):
+                pub_status = pubmed_pubdate.attrib.get("PubStatus")
+                pub_date = get_date_info(pubmed_pubdate, year_info_only, parse_time)
+                dates.append({'status': pub_status, 'date': pub_date})
+    return dates
+
+
+def parse_completion_date(medline, year_info_only):
+    """Parse Completion date from article
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+    year_info_only: bool
+        if True, this tool will only attempt to extract year information from PubDate.
+        if False, an attempt will be made to harvest all available PubDate information.
+        If only year and month information is available, this will yield a date of
+        the form 'YYYY-MM'. If year, month and day information is available,
+        a date of the form 'YYYY-MM-DD' will be returned.
+
+    Returns
+    -------
+    date_completion: str
+        String of date completed as "YYYY-MM-DD"
+    """
+
+    date_completion = ""
+
+    if medline.find("DateCompleted") is not None:
+        date_completion_xml = medline.find("DateCompleted")
+        date_completion = get_date_info(date_completion_xml, year_info_only)
+
+    return date_completion
+
+
+def parse_modification_date(medline, year_info_only):
+    """Parse Modification date from article
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+    year_info_only: bool
+        if True, this tool will only attempt to extract year information from PubDate.
+        if False, an attempt will be made to harvest all available PubDate information.
+        If only year and month information is available, this will yield a date of
+        the form 'YYYY-MM'. If year, month and day information is available,
+        a date of the form 'YYYY-MM-DD' will be returned.
+
+    Returns
+    -------
+    date_modification: str
+        String of last modified date as "YYYY-MM-DD"
+    """
+
+    date_modification = ""
+
+    if medline.find("DateRevised") is not None:
+        date_revised_xml = medline.find("DateRevised")
+        date_modification = get_date_info(date_revised_xml, year_info_only)
+
+    return date_modification
+
+
+def parse_investigators_list(medline):
+    """Parse MEDLINE investigators
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    investigators: list
+        List of investigators in dictionary format
+    """
+    investigators = []
+    investigator_list = medline.find("InvestigatorList")
+    if investigator_list is not None:
+        investigators_list = investigator_list.findall("Investigator")
+        for investigator in investigators_list:
+            if investigator.find("ForeName") is not None:
+                forename = (investigator.find("ForeName").text or "").strip() or ""
+            else:
+                forename = ""
+            if investigator.find("Initials") is not None:
+                initials = (investigator.find("Initials").text or "").strip() or ""
+            else:
+                initials = ""
+            if investigator.find("LastName") is not None:
+                lastname = (investigator.find("LastName").text or "").strip() or ""
+            else:
+                lastname = ""
+            if investigator.find("Suffix") is not None:
+                suffix = (investigator.find("Suffix").text or "").strip() or ""
+            else:
+                suffix = ""
+            investigators.append(
+                {
+                    "lastname": lastname,
+                    "forename": forename,
+                    "initials": initials,
+                    "suffix": suffix
+                }
+            )
+    return investigators
+
+
+def parse_databank_list(medline):
+    """
+    A function to parse databank list from a given Pubmed Article tree
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    databank_list: list|objects
+        A list of Databank objects with name and accession numbers parsed from a given ``pubmed_article``.
+    """
+    article = medline.find("Article")
+    databank_list_xml = article.find("DataBankList")
+    databank_list = list()
+    if databank_list_xml:
+        for databank_xml in databank_list_xml.findall("DataBank"):
+            databank_name = databank_xml.find("DataBankName")
+            accession_number_list_xml = databank_xml.find("AccessionNumberList")
+            accession_number_list = list()
+            if accession_number_list_xml:
+                accession_number_list = [
+                    accession_number.text
+                    for accession_number in accession_number_list_xml.findall("AccessionNumber")
+                ]
+            databank_list.append({"name": databank_name, "accession_numbers": accession_number_list})
+
+    return databank_list
+
+
+def parse_personal_subject_names_list(medline):
+    """Parse personal subject names from medline
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    personal_subject_names: list
+        List of personal subject names in dictionary format
+    """
+    personal_subject_names = []
+    personal_subject_names_xml = medline.find("PersonalNameSubjectList")
+    if personal_subject_names_xml is not None:
+        for personal_subject_name in personal_subject_names_xml.findall("PersonalNameSubject"):
+            if personal_subject_name.find("ForeName") is not None:
+                forename = (personal_subject_name.find("ForeName").text or "").strip() or ""
+            else:
+                forename = ""
+            if personal_subject_name.find("Initials") is not None:
+                initials = (personal_subject_name.find("Initials").text or "").strip() or ""
+            else:
+                initials = ""
+            if personal_subject_name.find("LastName") is not None:
+                lastname = (personal_subject_name.find("LastName").text or "").strip() or ""
+            else:
+                lastname = ""
+            if personal_subject_name.find("Suffix") is not None:
+                suffix = (personal_subject_name.find("Suffix").text or "").strip() or ""
+            else:
+                suffix = ""
+            personal_subject_name.append(
+                {
+                    "lastname": lastname,
+                    "forename": forename,
+                    "initials": initials,
+                    "suffix": suffix
+                }
+            )
+    return personal_subject_names
+
+
+def parse_supplementary_concepts_list(medline):
+    """Parse supplementary concepts from medline
+
+    Parameters
+    ----------
+    medline: Element
+        The lxml node pointing to a medline document
+
+    Returns
+    -------
+    supplementary_concepts: list
+        List of supplementary concepts in dictionary format
+    """
+    supplementary_concepts = []
+    supplementary_concepts_xml = medline.find("SupplMeshList")
+    if supplementary_concepts_xml is not None:
+        supplementary_concepts = [
+            {
+                "type": supplementary_concept.attrib.get("Type"),
+                "UI": supplementary_concept.attrib.get("UI"),
+                "supplementary_concept": supplementary_concept.text
+            }
+            for supplementary_concept in supplementary_concepts_xml.findall("SupplMeshName")
+        ]
+
+    return supplementary_concepts
+
+
 def parse_article_info(
-    pubmed_article, year_info_only, nlm_category, author_list, reference_list
+    pubmed_article, year_info_only, nlm_category, author_list, reference_list, parse_time, history_dates_list,
+        investigator_list, elocation_ids_list, databank_list, personal_subject_names_list, supplementary_concepts_list
 ):
     """Parse article nodes from Medline dataset
 
@@ -586,9 +942,23 @@ def parse_article_info(
     nlm_category: bool
         see more details in parse_medline_xml()
     author_list: bool
-        if True, return output as list, else
+        if True, return output as list, else string concatenated by ';'
     reference_list: bool
         if True, parse reference list as an output
+    parse_time: bool
+        if True, parse time from history dates and add to history dates output.
+    history_dates_list: bool
+        if True, return output as list, else string concatenated by ';'
+    investigator_list: bool
+        if True, return output as list, else string concatenated by ';'
+    elocation_ids_list: bool
+        if True, return output as list, else string concatenated by ';'
+    databank_list: bool
+        if True, return output as list, else string concatenated by ';'
+    personal_subject_names_list: bool
+        if True, return output as list, else string concatenated by ';'
+    supplementary_concepts_list: bool
+        if True, return output as list, else string concatenated by ';'
 
     Returns
     -------
@@ -628,6 +998,8 @@ def parse_article_info(
     else:
         issue = ""
 
+    short_issue = issue
+
     if volume == "":
         issue = ""
     else:
@@ -660,6 +1032,11 @@ def parse_article_info(
     else:
         abstract = ""
 
+    authors_type = "authors"
+    author_list_xml = article.find("AuthorList")
+    if author_list_xml is not None:
+        authors_type = author_list_xml.attrib.get("Type", "authors")
+
     authors_dict = parse_author_affiliation(medline)
     if not author_list:
         affiliations = ";".join(
@@ -672,12 +1049,81 @@ def parse_article_info(
         authors = ";".join(
             [
                 author.get("lastname", "") + "|" + author.get("forename",   "") + "|" +
-                author.get("initials",  "") + "|" + author.get("identifier", "")
+                author.get("initials",  "") + "|" + author.get("suffix", "") + "|" +
+                author.get("identifier_type", "") + "|" + author.get("identifier", "") + "|" +
+                author.get("corporate", "")
                 for author in authors_dict
             ]
         )
     else:
         authors = authors_dict
+
+    investigators_dict = parse_investigators_list(medline)
+    if not investigator_list:
+        investigators = ";".join(
+            [
+                investigator.get("lastname", "") + "|" + investigator.get("forename", "") + "|" +
+                investigator.get("initials", "") + "|" + investigator.get("suffix", "")
+                for investigator in investigators_dict
+            ]
+        )
+    else:
+        investigators = investigators_dict
+
+    history_dates = parse_pubmed_history_dates(pubmed_article, year_info_only, parse_time)
+    if not history_dates_list:
+        history_dates = ";".join(
+            [
+                history_date.get("status", "") + "|" + history_date.get("date", "")
+                for history_date in history_dates
+            ]
+        )
+
+    elocation_ids = parse_elocation_ids(pubmed_article)
+    if not elocation_ids_list:
+        elocation_ids = ";".join(
+            [
+                elocation_id.get("type", "") + "|" + elocation_id.get("ELocationID", "")
+                for elocation_id in elocation_ids
+            ]
+        )
+
+    databanks = parse_databank_list(medline)
+    if not databank_list:
+        databanks_info = list()
+        for databank in databanks:
+            databank_name = databank.get("name")
+            accession_numbers = databank.get("accession_numbers")
+            if len(accession_numbers) > 0:
+                for accession_number in databank.get("accession_numbers"):
+                    databank_term = databank_name + "/" + accession_number
+                    databanks_info.append(databank_term)
+            else:
+                databanks_info.append(databank_name)
+        databanks_info = ";".join(databanks_info)
+    else:
+        databanks_info = databanks
+
+    personal_subject_names = parse_personal_subject_names_list(medline)
+    if not personal_subject_names_list:
+        personal_subject_names = ";".join(
+            [
+                personal_subject_name.get("lastname", "") + "|" + personal_subject_name.get("forename", "") + "|" +
+                personal_subject_name.get("initials", "") + "|" + personal_subject_name.get("suffix", "")
+                for personal_subject_name in personal_subject_names
+            ]
+        )
+
+    supplementary_concepts = parse_supplementary_concepts_list(medline)
+    if not supplementary_concepts_list:
+        supplementary_concepts = ";".join(
+            [
+                supplementary_concept.get("type") + "|" + supplementary_concept.get("UI")
+                + "|" + supplementary_concept.get("supplementary_concept")
+                for supplementary_concept in supplementary_concepts
+            ]
+        )
+
     journal = article.find("Journal")
     journal_name = " ".join(journal.xpath("Title/text()"))
 
@@ -691,13 +1137,20 @@ def parse_article_info(
     keywords = parse_keywords(medline)
     other_id_dict = parse_other_id(medline)
     journal_info_dict = parse_journal_info(medline)
+    coi_statement = parse_coi_statement(medline)
+    completion_date = parse_completion_date(medline, year_info_only)
+    modification_date = parse_modification_date(medline, year_info_only)
+
     dict_out = {
         "title": title,
         "issue": issue,
+        "short_issue": short_issue,
+        "volume": volume,
         "pages": pages,
         "abstract": abstract,
         "journal": journal_name,
         "authors": authors,
+        "authors_type": authors_type,
         "pubdate": pubdate,
         "pmid": pmid,
         "mesh_terms": mesh_results.get("mesh_terms"),
@@ -711,10 +1164,20 @@ def parse_article_info(
         "references": references,
         "delete": False,
         "languages": languages,
-        "vernacular_title": vernacular_title
+        "vernacular_title": vernacular_title,
+        "coi_statement": coi_statement,
+        "completion_date": completion_date,
+        "modification_date": modification_date,
+        "history_dates": history_dates,
+        "investigators": investigators,
+        "elocation_ids": elocation_ids,
+        "databanks": databanks_info,
+        "personal_subject_names": personal_subject_names,
+        "supplementary_concepts": supplementary_concepts
     }
     if not author_list:
         dict_out.update({"affiliations": affiliations})
+
     dict_out.update(other_id_dict)
     dict_out.update(journal_info_dict)
     return dict_out
@@ -726,6 +1189,13 @@ def parse_medline_xml(
     nlm_category=False,
     author_list=False,
     reference_list=False,
+    parse_time=False,
+    history_dates_list=False,
+    investigator_list=False,
+    elocation_ids_list=False,
+    databanks_list=False,
+    personal_subject_names_list=False,
+    supplementary_concepts_list=False
 ):
     """Parse XML file from Medline XML format available at
     ftp://ftp.nlm.nih.gov/nlmdata/.medleasebaseline/gz/
@@ -748,13 +1218,41 @@ def parse_medline_xml(
         if False, this will parse structured abstract where each section will be assigned to
         NLM category of each sections
         default: False
-     author_list: bool
+    author_list: bool
         if True, return parsed author output as a list of authors
         if False, return parsed author output as a string of authors concatenated with ``;``
         default: False
     reference_list: bool
         if True, parse reference list as an output
         if False, return string of PMIDs concatenated with ;
+        default: False
+    parse_time: bool
+        if True, parse the time from history dates.
+        if False, do not parse the time from the history dates.
+        default: False
+    history_dates_list: bool
+        if True, return parsed history dates output as a list of dates
+        if False, return parsed history output as a string of dates concatenated with ``;``
+        default: False
+    investigator_list: bool
+        if True, return parsed investigator output as a list of investigators
+        if False, return parsed investigator output as a string of investigators concatenated with ``;``
+        default: False
+    elocation_ids_list: bool
+        if True, return parsed elocation_ids output as a list of elocation_id objects with type and elocation id.
+        if False, return parsed elocation_ids output as a string of elocation_ids concatenated with ``;``
+        default: False
+    databanks_list: bool
+        if True, return parsed databanks output as a list of databank objects with name and a list of accession numbers.
+        if False, return parsed databanks output as a string of databanks concatenated with ``;``
+        default: False
+    personal_subject_names_list: bool
+        if True, return parsed personal_subject_names output as a list of personal_subject_names objects.
+        if False, return parsed personal_subject_names output as a string of subject_names concatenated with ``;``
+        default: False
+    supplementary_concepts_list: bool
+        if True, return parsed supplementary_concepts output as a list of supplementary_concepts objects.
+        if False, return parsed supplementary_concepts output as a string of concepts concatenated with ``;``
         default: False
 
     Return
@@ -775,7 +1273,9 @@ def parse_medline_xml(
     article_list = list(
         map(
             lambda m: parse_article_info(
-                m, year_info_only, nlm_category, author_list, reference_list
+                m, year_info_only, nlm_category, author_list, reference_list, parse_time, history_dates_list,
+                investigator_list, elocation_ids_list, databanks_list, personal_subject_names_list,
+                supplementary_concepts_list
             ),
             medline_citations,
         )
@@ -787,6 +1287,7 @@ def parse_medline_xml(
             "abstract": np.nan,
             "journal": np.nan,
             "authors": np.nan,
+            "authors_type": np.nan,
             "affiliations": np.nan,
             "pubdate": np.nan,
             "pmid": p.text.strip(),
@@ -807,9 +1308,20 @@ def parse_medline_xml(
             "country": np.nan,
             "references": np.nan,
             "issue": np.nan,
+            "short_issue": np.nan,
+            "volume": np.nan,
             "pages": np.nan,
             "languages": np.nan,
-            "vernacular_title": np.nan
+            "vernacular_title": np.nan,
+            "coi_statement": np.nan,
+            "completion_date": np.nan,
+            "modification_date": np.nan,
+            "history_dates": np.nan,
+            "investigators": np.nan,
+            "elocation_ids": np.nan,
+            "databanks": np.nan,
+            "personal_subject_names": np.nan,
+            "supplementary_concepts": np.nan
         }
         for p in delete_citations
     ]
