@@ -470,57 +470,60 @@ def parse_author_affiliation(medline):
     authors = []
     article = medline.find("Article")
     if article is not None:
-        author_list = article.find("AuthorList")
-        if author_list is not None:
-            authors_list = author_list.findall("Author")
-            for author in authors_list:
-                if author.find("ForeName") is not None:
-                    forename = (author.find("ForeName").text or "").strip() or ""
-                else:
-                    forename = ""
-                if author.find("Initials") is not None:
-                    initials = (author.find("Initials").text or "").strip() or ""
-                else:
-                    initials = ""
-                if author.find("LastName") is not None:
-                    lastname = (author.find("LastName").text or "").strip() or ""
-                else:
-                    lastname = ""
-                if author.find("Identifier") is not None:
-                    identifier_xml = author.find("Identifier")
-                    identifier_type = (identifier_xml.attrib.get("Source", "") or "").strip() or ""
-                    identifier = (identifier_xml.text or "").strip() or ""
-                else:
-                    identifier_type = ""
-                    identifier = ""
-                if author.find("Suffix") is not None:
-                    suffix = (author.find("Suffix").text or "").strip() or ""
-                else:
-                    suffix = ""
-                if author.find("CollectiveName") is not None:
-                    corporate = (author.find("CollectiveName").text or "").strip() or ""
-                else:
-                    corporate = ""
-                if author.find("AffiliationInfo/Affiliation") is not None:
-                    affiliation = author.find("AffiliationInfo/Affiliation").text or ""
-                    affiliation = affiliation.replace(
-                        "For a full list of the authors' affiliations please see the Acknowledgements section.",
-                        "",
+        # TODO: Make this work for books with multiple lists.
+        if article.find("AuthorList") is not None:
+            for author_list in article.findall("AuthorList"):
+                authors_type = author_list.attrib.get("Type", "authors")
+                authors_list = author_list.findall("Author")
+                for author in authors_list:
+                    if author.find("ForeName") is not None:
+                        forename = (author.find("ForeName").text or "").strip() or ""
+                    else:
+                        forename = ""
+                    if author.find("Initials") is not None:
+                        initials = (author.find("Initials").text or "").strip() or ""
+                    else:
+                        initials = ""
+                    if author.find("LastName") is not None:
+                        lastname = (author.find("LastName").text or "").strip() or ""
+                    else:
+                        lastname = ""
+                    if author.find("Identifier") is not None:
+                        identifier_xml = author.find("Identifier")
+                        identifier_type = (identifier_xml.attrib.get("Source", "") or "").strip() or ""
+                        identifier = (identifier_xml.text or "").strip() or ""
+                    else:
+                        identifier_type = ""
+                        identifier = ""
+                    if author.find("Suffix") is not None:
+                        suffix = (author.find("Suffix").text or "").strip() or ""
+                    else:
+                        suffix = ""
+                    if author.find("CollectiveName") is not None:
+                        corporate = (author.find("CollectiveName").text or "").strip() or ""
+                    else:
+                        corporate = ""
+                    if author.find("AffiliationInfo/Affiliation") is not None:
+                        affiliation = author.find("AffiliationInfo/Affiliation").text or ""
+                        affiliation = affiliation.replace(
+                            "For a full list of the authors' affiliations please see the Acknowledgements section.",
+                            "",
+                        )
+                    else:
+                        affiliation = ""
+                    authors.append(
+                        {
+                            "lastname": lastname,
+                            "forename": forename,
+                            "initials": initials,
+                            "suffix": suffix,
+                            "author_type": authors_type,
+                            "identifier_type": identifier_type,
+                            "identifier": identifier,
+                            "corporate": corporate,
+                            "affiliation": affiliation
+                        }
                     )
-                else:
-                    affiliation = ""
-                authors.append(
-                    {
-                        "lastname": lastname,
-                        "forename": forename,
-                        "initials": initials,
-                        "identifier_type": identifier_type,
-                        "identifier": identifier,
-                        "corporate": corporate,
-                        "suffix": suffix,
-                        "affiliation": affiliation,
-                    }
-                )
     return authors
 
 
@@ -1032,11 +1035,6 @@ def parse_article_info(
     else:
         abstract = ""
 
-    authors_type = "authors"
-    author_list_xml = article.find("AuthorList")
-    if author_list_xml is not None:
-        authors_type = author_list_xml.attrib.get("Type", "authors")
-
     authors_dict = parse_author_affiliation(medline)
     if not author_list:
         affiliations = ";".join(
@@ -1049,8 +1047,8 @@ def parse_article_info(
         authors = ";".join(
             [
                 author.get("lastname", "") + "|" + author.get("forename",   "") + "|" +
-                author.get("initials",  "") + "|" + author.get("suffix", "") + "|" +
-                author.get("identifier_type", "") + "|" + author.get("identifier", "") + "|" +
+                author.get("initials",  "") + "|" + author.get("suffix", "") + "|" + author.get("author_type", "") +
+                "|" + author.get("identifier_type", "") + "|" + author.get("identifier", "") + "|" +
                 author.get("corporate", "")
                 for author in authors_dict
             ]
@@ -1150,7 +1148,6 @@ def parse_article_info(
         "abstract": abstract,
         "journal": journal_name,
         "authors": authors,
-        "authors_type": authors_type,
         "pubdate": pubdate,
         "pmid": pmid,
         "mesh_terms": mesh_results.get("mesh_terms"),
@@ -1287,7 +1284,6 @@ def parse_medline_xml(
             "abstract": np.nan,
             "journal": np.nan,
             "authors": np.nan,
-            "authors_type": np.nan,
             "affiliations": np.nan,
             "pubdate": np.nan,
             "pmid": p.text.strip(),
