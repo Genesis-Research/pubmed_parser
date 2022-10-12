@@ -932,7 +932,8 @@ def parse_supplementary_concepts_list(medline):
 
 def parse_article_info(
     pubmed_article, year_info_only, nlm_category, author_list, reference_list, parse_time, history_dates_list,
-        investigator_list, elocation_ids_list, databank_list, personal_subject_names_list, supplementary_concepts_list
+        investigator_list, elocation_ids_list, databank_list, personal_subject_names_list, supplementary_concepts_list,
+        grant_ids_list
 ):
     """Parse article nodes from Medline dataset
 
@@ -961,6 +962,8 @@ def parse_article_info(
     personal_subject_names_list: bool
         if True, return output as list, else string concatenated by ';'
     supplementary_concepts_list: bool
+        if True, return output as list, else string concatenated by ';'
+    grant_ids_list: bool
         if True, return output as list, else string concatenated by ';'
 
     Returns
@@ -1124,6 +1127,16 @@ def parse_article_info(
 
     publication_status = pubmed_article.find("PubmedData/PublicationStatus").text
 
+    grant_ids = parse_grant_id(pubmed_article)
+    if not grant_ids_list:
+        grant_ids = ";".join(
+            [
+                grant_id.get("grant_id") + "|" + grant_id.get("grant_acronym")
+                + "|" + grant_id.get("country") + "|" + grant_id.get("agency")
+                for grant_id in grant_ids
+            ]
+        )
+
     journal = article.find("Journal")
     journal_name = " ".join(journal.xpath("Title/text()"))
 
@@ -1173,7 +1186,8 @@ def parse_article_info(
         "databanks": databanks_info,
         "personal_subject_names": personal_subject_names,
         "supplementary_concepts": supplementary_concepts,
-        "publication_status": publication_status
+        "publication_status": publication_status,
+        "grant_ids": grant_ids
     }
     if not author_list:
         dict_out.update({"affiliations": affiliations})
@@ -1195,7 +1209,8 @@ def parse_medline_xml(
     elocation_ids_list=False,
     databanks_list=False,
     personal_subject_names_list=False,
-    supplementary_concepts_list=False
+    supplementary_concepts_list=False,
+    grant_ids_list=False
 ):
     """Parse XML file from Medline XML format available at
     ftp://ftp.nlm.nih.gov/nlmdata/.medleasebaseline/gz/
@@ -1254,6 +1269,10 @@ def parse_medline_xml(
         if True, return parsed supplementary_concepts output as a list of supplementary_concepts objects.
         if False, return parsed supplementary_concepts output as a string of concepts concatenated with ``;``
         default: False
+    grant_ids_list: bool
+        if True, return parsed grant_ids output as a list of grant_id objects.
+        if False, return parsed grant_ids output as a string of grants concatenated with ``;`` (pmid arg not included)
+        default: False
 
     Return
     ------
@@ -1275,7 +1294,7 @@ def parse_medline_xml(
             lambda m: parse_article_info(
                 m, year_info_only, nlm_category, author_list, reference_list, parse_time, history_dates_list,
                 investigator_list, elocation_ids_list, databanks_list, personal_subject_names_list,
-                supplementary_concepts_list
+                supplementary_concepts_list, grant_ids_list
             ),
             medline_citations,
         )
@@ -1320,7 +1339,9 @@ def parse_medline_xml(
             "elocation_ids": np.nan,
             "databanks": np.nan,
             "personal_subject_names": np.nan,
-            "supplementary_concepts": np.nan
+            "supplementary_concepts": np.nan,
+            "publication_status": np.nan,
+            "grant_ids": np.nan
         }
         for p in delete_citations
     ]
