@@ -1122,6 +1122,8 @@ def parse_article_info(
             ]
         )
 
+    publication_status = pubmed_article.find("PubmedData/PublicationStatus").text
+
     journal = article.find("Journal")
     journal_name = " ".join(journal.xpath("Title/text()"))
 
@@ -1170,7 +1172,8 @@ def parse_article_info(
         "elocation_ids": elocation_ids,
         "databanks": databanks_info,
         "personal_subject_names": personal_subject_names,
-        "supplementary_concepts": supplementary_concepts
+        "supplementary_concepts": supplementary_concepts,
+        "publication_status": publication_status
     }
     if not author_list:
         dict_out.update({"affiliations": affiliations})
