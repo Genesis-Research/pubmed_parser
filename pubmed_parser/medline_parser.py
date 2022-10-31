@@ -583,7 +583,7 @@ def get_date_info(date_xml, year_info_only, parse_time=False):
         return year
     else:
         date = "-".join(str(x) for x in filter(None, [year, month, day]))
-        if parse_time or hour is None:
+        if parse_time and hour is not None:
             time = ":".join(str(x) for x in filter(None, [hour, minute]))
             date = date + ' ' + time
         return date
