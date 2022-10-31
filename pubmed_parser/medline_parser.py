@@ -844,12 +844,12 @@ def parse_databank_list(medline):
     article = medline.find("Article")
     databank_list_xml = article.find("DataBankList")
     databank_list = list()
-    if databank_list_xml:
+    if databank_list_xml is not None:
         for databank_xml in databank_list_xml.findall("DataBank"):
             databank_name = databank_xml.find("DataBankName").text
             accession_number_list_xml = databank_xml.find("AccessionNumberList")
             accession_number_list = list()
-            if accession_number_list_xml:
+            if accession_number_list_xml is not None:
                 accession_number_list = [
                     accession_number.text
                     for accession_number in accession_number_list_xml.findall("AccessionNumber")
