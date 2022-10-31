@@ -111,8 +111,9 @@ def parse_elocation_ids(pubmed_article):
         if article_ids is not None:
             doi = article_ids.find('ArticleId[@IdType="doi"]')
             if doi is not None:
-                if doi.text.strip() != "":
-                    elocation_ids.append({'type': 'doi', 'ELocationID': doi.text.strip()})
+                if doi.text:
+                    if doi.text.strip() != "":
+                        elocation_ids.append({'type': 'doi', 'ELocationID': doi.text.strip()})
 
     return elocation_ids
 
@@ -224,10 +225,10 @@ def parse_mesh_info(medline):
                     + ("*" if mesh_term.attrib.get("MajorTopicYN", "N") == "Y" else "")
                     )
 
-        mesh_terms = "; ".join(mesh_terms_list)
-        mesh_subheadings = "; ".join(mesh_subheadings_list)
-        mesh_major_topics = "; ".join(mesh_major_topics_list)
-        mesh_full_terms = "; ".join(mesh_full_terms_list)
+        mesh_terms = ";".join(mesh_terms_list)
+        mesh_subheadings = ";".join(mesh_subheadings_list)
+        mesh_major_topics = ";".join(mesh_major_topics_list)
+        mesh_full_terms = ";".join(mesh_full_terms_list)
     else:
         mesh_terms = ""
         mesh_subheadings = ""
@@ -264,7 +265,7 @@ def parse_publication_types(medline):
                 + ":"
                 + (publication_type.text.strip() or "")
             )
-    publication_types = "; ".join(publication_types)
+    publication_types = ";".join(publication_types)
     return publication_types
 
 
@@ -287,7 +288,7 @@ def parse_keywords(medline):
         for k in keyword_list.findall("Keyword"):
             if k.text is not None:
                 keywords.append(k.text)
-        keywords = "; ".join(keywords)
+        keywords = ";".join(keywords)
     else:
         keywords = ""
     return keywords
@@ -319,7 +320,7 @@ def parse_chemical_list(medline):
                 + ":"
                 + (substance_name.text.strip() or "")
             )
-    chemical_list = "; ".join(chemical_list)
+    chemical_list = ";".join(chemical_list)
     return chemical_list
 
 
@@ -345,7 +346,7 @@ def parse_other_id(medline):
                 pmc = oid.text
             else:
                 other_id.append(oid.text)
-        other_id = "; ".join(other_id)
+        other_id = ";".join(other_id)
     else:
         other_id = ""
     return {"pmc": pmc, "other_id": other_id}
@@ -845,7 +846,7 @@ def parse_databank_list(medline):
     databank_list = list()
     if databank_list_xml:
         for databank_xml in databank_list_xml.findall("DataBank"):
-            databank_name = databank_xml.find("DataBankName")
+            databank_name = databank_xml.find("DataBankName").text
             accession_number_list_xml = databank_xml.find("AccessionNumberList")
             accession_number_list = list()
             if accession_number_list_xml:
@@ -891,7 +892,7 @@ def parse_personal_subject_names_list(medline):
                 suffix = (personal_subject_name.find("Suffix").text or "").strip() or ""
             else:
                 suffix = ""
-            personal_subject_name.append(
+            personal_subject_names.append(
                 {
                     "lastname": lastname,
                     "forename": forename,
