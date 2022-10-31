@@ -159,9 +159,9 @@ def parse_mesh_info(medline):
     Returns
     -------
     dict_out: dict
-        dictionary with keys including `mesh_terms`, `mesh_subheadings` `mesh_major_topics`, and `mesh_full_terms`
+        dictionary with keys including `mesh_headings`, `mesh_subheadings` `mesh_major_topics`, and `mesh_terms`
 
-        mesh_terms: str
+        mesh_headings: str
             String of semi-colon ``;`` spearated MeSH (Medical Subject Headings)
             terms contained in the document.
         mesh_subheadings: str
@@ -170,25 +170,25 @@ def parse_mesh_info(medline):
         mesh_major_topics: str
             String of semi-colon ``;`` spearated MeSH (Medical Subject Headings)
             headings and subheadings that are designated as Major Topics contained in the document.
-        mesh_full_terms: str
+        mesh_terms: str
             String of semi-colon ``;`` separated MeSH (Medical Subject Headings)
             full terms, including MeSH Headings, Subheadings, and Major Topics (Depicted as * at end of text)
             contained in the document.
     """
     if medline.find("MeshHeadingList") is not None:
         mesh = medline.find("MeshHeadingList")
-        mesh_terms_list = []
+        mesh_headings_list = []
         mesh_subheadings_list = []
         mesh_major_topics_list = []
-        mesh_full_terms_list = []
-        for mesh_heading in mesh.getchildren():
-            mesh_term = mesh_heading.find("DescriptorName")
-            subheadings = mesh_heading.findall("QualifierName")
+        mesh_terms_list = []
+        for mesh_term in mesh.getchildren():
+            mesh_heading = mesh_term.find("DescriptorName")
+            subheadings = mesh_term.findall("QualifierName")
 
-            mesh_terms_list.append(
-                mesh_term.attrib.get("UI", "")
+            mesh_headings_list.append(
+                mesh_heading.attrib.get("UI", "")
                 + ":"
-                + mesh_term.text
+                + mesh_heading.text
             )
 
             if len(subheadings) > 0:
@@ -200,45 +200,45 @@ def parse_mesh_info(medline):
                         if subheading_text not in mesh_major_topics_list:
                             mesh_major_topics_list.append(subheading_text)
 
-                    mesh_full_terms_list.append(
-                        mesh_term.attrib.get("UI", "")
+                    mesh_terms_list.append(
+                        mesh_heading.attrib.get("UI", "")
                         + "/"
                         + subheading.attrib.get("UI", "")
                         + ":"
-                        + mesh_term.text
+                        + mesh_heading.text
                         + "/"
                         + subheading.text
                         + ("*" if subheading.attrib.get("MajorTopicYN", "N") == "Y" else "")
                     )
             else:
-                if mesh_term.attrib.get("MajorTopicYN", "N") == "Y":
+                if mesh_heading.attrib.get("MajorTopicYN", "N") == "Y":
                     mesh_major_topics_list.append(
-                        mesh_term.attrib.get("UI", "")
+                        mesh_heading.attrib.get("UI", "")
                         + ":"
-                        + mesh_term.text
+                        + mesh_heading.text
                     )
 
-                mesh_full_terms_list.append(
-                    mesh_term.attrib.get("UI", "")
+                mesh_terms_list.append(
+                    mesh_heading.attrib.get("UI", "")
                     + ":"
-                    + mesh_term.text
-                    + ("*" if mesh_term.attrib.get("MajorTopicYN", "N") == "Y" else "")
+                    + mesh_heading.text
+                    + ("*" if mesh_heading.attrib.get("MajorTopicYN", "N") == "Y" else "")
                     )
 
-        mesh_terms = ";".join(mesh_terms_list)
+        mesh_headings = ";".join(mesh_headings_list)
         mesh_subheadings = ";".join(mesh_subheadings_list)
         mesh_major_topics = ";".join(mesh_major_topics_list)
-        mesh_full_terms = ";".join(mesh_full_terms_list)
+        mesh_terms = ";".join(mesh_terms_list)
     else:
-        mesh_terms = ""
+        mesh_headings = ""
         mesh_subheadings = ""
         mesh_major_topics = ""
-        mesh_full_terms = ""
+        mesh_terms = ""
     return {
-        "mesh_terms": mesh_terms,
+        "mesh_headings": mesh_headings,
         "mesh_subheadings": mesh_subheadings,
         "mesh_major_topics": mesh_major_topics,
-        "mesh_full_terms": mesh_full_terms
+        "mesh_terms": mesh_terms
     }
 
 
@@ -972,8 +972,8 @@ def parse_article_info(
     article: dict
         Dictionary containing information about the article, including
         `title`, `abstract`, `journal`, `authors`, `affiliations`, `pubdate`,
-        `pmid`, `other_id`, `mesh_terms`, `mesh_subheadings`, `mesh_major_topics`,
-        `mesh_full_terms`, `pages`, `issue`, and `keywords`. The field
+        `pmid`, `other_id`, `mesh_headings`, `mesh_subheadings`, `mesh_major_topics`,
+        `mesh_terms`, `pages`, `issue`, and `keywords`. The field
         `delete` is always `False` because this function parses
         articles that by definition are not deleted.
     """
@@ -1166,10 +1166,10 @@ def parse_article_info(
         "authors": authors,
         "pubdate": pubdate,
         "pmid": pmid,
-        "mesh_terms": mesh_results.get("mesh_terms"),
+        "mesh_headings": mesh_results.get("mesh_headings"),
         "mesh_subheadings": mesh_results.get("mesh_subheadings"),
         "mesh_major_topics": mesh_results.get("mesh_major_topics"),
-        "mesh_full_terms": mesh_results.get("mesh_full_terms"),
+        "mesh_terms": mesh_results.get("mesh_terms"),
         "publication_types": publication_types,
         "chemical_list": chemical_list,
         "keywords": keywords,
@@ -1313,10 +1313,10 @@ def parse_medline_xml(
             "doi": np.nan,
             "other_id": np.nan,
             "pmc": np.nan,
-            "mesh_terms": np.nan,
+            "mesh_headings": np.nan,
             "mesh_subheadings": np.nan,
             "mesh_major_topics": np.nan,
-            "mesh_full_terms": np.nan,
+            "mesh_terms": np.nan,
             "keywords": np.nan,
             "publication_types": np.nan,
             "chemical_list": np.nan,
