@@ -379,7 +379,7 @@ def parse_journal_info(medline):
         else:
             nlm_unique_id = ""
         if journal_info.find("ISSNLinking") is not None:
-            issn_linking = journal_info.find("ISSNLinking").text
+            issn_linking = journal_info.find("ISSNLinking").text or ""
         else:
             issn_linking = ""
         if journal_info.find("Country") is not None:
@@ -426,22 +426,22 @@ def parse_grant_id(pubmed_article):
         for grant in grants_list:
             grant_country = grant.find("Country")
             if grant_country is not None:
-                country = grant_country.text
+                country = grant_country.text or ""
             else:
                 country = ""
             grant_agency = grant.find("Agency")
             if grant_agency is not None:
-                agency = grant_agency.text
+                agency = grant_agency.text or ""
             else:
                 agency = ""
             grant_acronym = grant.find("Acronym")
             if grant_acronym is not None:
-                acronym = grant_acronym.text
+                acronym = grant_acronym.text or ""
             else:
                 acronym = ""
             grant_id = grant.find("GrantID")
             if grant_id is not None:
-                gid = grant_id.text
+                gid = grant_id.text or ""
             else:
                 gid = ""
             grant_dict = {
@@ -449,7 +449,7 @@ def parse_grant_id(pubmed_article):
                 "grant_id": gid,
                 "grant_acronym": acronym,
                 "country": country,
-                "agency": agency,
+                "agency": agency
             }
             grant_list.append(grant_dict)
     return grant_list
@@ -846,12 +846,12 @@ def parse_databank_list(medline):
     databank_list = list()
     if databank_list_xml is not None:
         for databank_xml in databank_list_xml.findall("DataBank"):
-            databank_name = databank_xml.find("DataBankName").text
+            databank_name = databank_xml.find("DataBankName").text or ""
             accession_number_list_xml = databank_xml.find("AccessionNumberList")
             accession_number_list = list()
             if accession_number_list_xml is not None:
                 accession_number_list = [
-                    accession_number.text
+                    accession_number.text or ""
                     for accession_number in accession_number_list_xml.findall("AccessionNumber")
                 ]
             databank_list.append({"name": databank_name, "accession_numbers": accession_number_list})
@@ -921,9 +921,9 @@ def parse_supplementary_concepts_list(medline):
     if supplementary_concepts_xml is not None:
         supplementary_concepts = [
             {
-                "type": supplementary_concept.attrib.get("Type"),
-                "UI": supplementary_concept.attrib.get("UI"),
-                "supplementary_concept": supplementary_concept.text
+                "type": supplementary_concept.attrib.get("Type", ""),
+                "UI": supplementary_concept.attrib.get("UI", ""),
+                "supplementary_concept": supplementary_concept.text or ""
             }
             for supplementary_concept in supplementary_concepts_xml.findall("SupplMeshName")
         ]
