@@ -1083,7 +1083,7 @@ def parse_article_info(
 
     elocation_ids = parse_elocation_ids(pubmed_article)
     if not elocation_ids_list:
-        elocation_ids = ";".join(
+        elocation_ids = "||".join(
             [
                 elocation_id.get("type", "") + "|" + elocation_id.get("ELocationID", "")
                 for elocation_id in elocation_ids
