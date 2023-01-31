@@ -1132,8 +1132,8 @@ def parse_article_info(
     if not grant_ids_list:
         grant_ids = ";".join(
             [
-                grant_id.get("grant_id") + "|" + grant_id.get("grant_acronym")
-                + "|" + grant_id.get("country") + "|" + grant_id.get("agency")
+                grant_id.get("grant_id") + "<||>" + grant_id.get("grant_acronym")
+                + "<||>" + grant_id.get("country") + "<||>" + grant_id.get("agency")
                 for grant_id in grant_ids
             ]
         )
